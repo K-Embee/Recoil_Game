@@ -1,10 +1,10 @@
 window.addEventListener("load", function(event) {
 
-    // Global functions
+    // Main functions
 
     var render = function() {
-        display.fill("rgb(" + Math.random()*256 + "," + Math.random()*256 + "," + Math.random()*256 + ")" );
-        display.drawRectangle(game.player.loc[0], game.player.loc[1], 16, 16)
+        display.fill("rgb(" + Math.random()*128 + "," + Math.random()*128 + "," + Math.random()*128 + ")" );
+        game.movables.forEach(e => display.drawRectangle(e.loc[0], e.loc[1], e.size_x, e.size_y));
         display.render();
     };
     var update = function() {
@@ -16,16 +16,23 @@ window.addEventListener("load", function(event) {
         display.render();
     }
 
-    // Global variables
+    // Main variables
+    var size_x = 256*2;
+    var size_y = 144*2;
 
     var controller = new Controller();
-    var display = new Display(document.getElementById("myCanvas"));
-    var game = new Game();
+    var display = new Display(document.getElementById("myCanvas"), size_x, size_y);
+    var game = new Game(size_x, size_y);
 
     // Event Listeners
     window.addEventListener ("keydown", function(event) { controller.keyStateSet(event); } );
     window.addEventListener ("keyup", function(event) { controller.keyStateUnset(event); } );
     window.addEventListener ("resize", resize);
+    display.context.canvas.addEventListener ('mousemove', function(event) { controller.mouseEvent(event,
+                                                                                                    display.context.canvas.width,
+                                                                                                    display.context.canvas.height); } );
+    display.context.canvas.addEventListener ('mousedown', function(event) { controller.mouseDownEvent(event); } );
+    display.context.canvas.addEventListener ('mouseup', function(event) { controller.mouseUpEvent(event); } );
 
     // Game engine code
 

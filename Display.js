@@ -1,13 +1,9 @@
 class Display{
-    constructor(canvas){
+    constructor(canvas, size_x, size_y){
         this.buffer = document.createElement("canvas").getContext("2d");
         this.context = canvas.getContext("2d")
-        this.size_x = 256;
-        this.size_y = 144;
-        this.buffer.canvas.height = this.size_y;
-        this.buffer.canvas.width = this.size_x;
-        this.buffer.height = this.size_y;
-        this.buffer.width = this.size_x;
+        this.buffer.canvas.height = this.buffer.height = this.size_y = size_y;
+        this.buffer.canvas.width = this.buffer.width = this.size_x = size_x;
     }
 
     fill(color){
@@ -20,7 +16,7 @@ class Display{
     drawRectangle(x,y, x_size, y_size){
         this.buffer.beginPath()
         this.buffer.fillStyle = "#000000";
-        this.buffer.fillRect(x,y,x_size,y_size);
+        this.buffer.fillRect(Math.round(x),Math.round(y),x_size,y_size);
     }
 
     render(){
