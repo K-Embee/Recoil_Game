@@ -5,7 +5,10 @@ window.addEventListener("load", function(event) {
     var render = function() {
         display.fill("#000000" );
         display.drawTileMap(game.stage.tileMap);
-        game.movables.forEach(e => display.drawRectangle(e.loc[0], e.loc[1], e.size_x, e.size_y));
+        game.movables.forEach(e => (e.tileIndex == -1) ?
+            display.drawRectangle(e.loc[0], e.loc[1], e.size_x, e.size_y) :
+            display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex)
+        );
         display.render();
     };
     var update = function() {

@@ -26,6 +26,13 @@ class Display{
         }
     }
 
+    drawTileObject(destX, destY, index){
+        var x, y, tileSize = this.tileSheet.tileSize;
+        x = this.tileSheet.getX(index) * tileSize;
+        y = this.tileSheet.getY(index) * tileSize;
+        this.buffer.drawImage(this.tileSheet.image, x, y, tileSize, tileSize, Math.round(destX), Math.round(destY), tileSize, tileSize);
+    }
+
     drawRectangle(x,y, x_size, y_size){
         this.buffer.beginPath()
         this.buffer.fillStyle = "#ffffff";

@@ -6,8 +6,11 @@ class Movable{
         this.velocity = [0,0]; //Speed (x/dt). Persistent. Updated every frame.
         this.accel = [0,0]; //Acceleration (x/dt^2). Reset every frame Updated every frame.
         this.jerk = [0,0]; //Jerk (x/dt^3). Up to 10 is removed and applied to acceleration every frame. Updated on special-occasion single frames.
+        this.friction = false;
+        this.maxSpeed = 3; //Speed after which friction starts applying
         this.game = game;
         this.game.movables.push(this);
+        this.tileIndex = -1;
         this.markForDeletion = false; //To avoid deleting movables in the middle of the game loop we'll mark for cleanup to delete next frame
     }
 
@@ -84,21 +87,39 @@ class Movable{
 
     }
 
-    //TODO: Rewrite with proper vector math
+    //TODO: Rewrite with proper vector math, clean up
     updateMovement(direction){
         //Get acceleration from input, divided by itself to clamp at 1
         this.accel[0] = direction[0]/((direction[0] == 0) ? 1 : Math.abs(direction[0]));
         this.accel[1] = direction[1]/((direction[1] == 0) ? 1 : Math.abs(direction[1]));
 
-        //Add jerk
-        this.accel[0] += this.jerk[0];
-        this.accel[1] += this.jerk[1];
-        this.jerk[0] = 0;
-        this.jerk[1] = 0;
+        //Add jerk, up to 10 per frame
+        this.accel[0] += Math.min(this.jerk[0],10);
+        this.accel[1] += Math.min(this.jerk[1],10);
+
+        //Reduce jerk by however much was added
+        if(this.jerk[0] != 0) {
+            this.jerk[0] = Math.max(0, Math.abs(this.jerk[0])-10) * Math.sign(this.jerk[0]); //multiplying by math.sign to ensure negative jerk works
+        }
+        if(this.jerk[1] != 0) {
+            this.jerk[1] = Math.max(0, Math.abs(this.jerk[1])-10) * Math.sign(this.jerk[1]);
+        }
+
+        if(this.friction){
+            //Apply friction if not accelerating
+            if (this.accel[0] == 0) { this.accel[0] -= this.velocity[0]*0.1; }
+            if (this.accel[1] == 0) { this.accel[1] -= this.velocity[1]*0.1; }
+            //Apply friction if over the speed limit
+            if(Math.abs(this.velocity[0]) > this.maxSpeed) { this.accel[0] -= this.velocity[0]*0.3; }
+            if(Math.abs(this.velocity[1]) > this.maxSpeed) { this.accel[1] -= this.velocity[1]*0.3; }
+        }
 
         //Turn accel into speed
         this.velocity[0] += this.accel[0];
         this.velocity[1] += this.accel[1];
+        //Clamp accel based on the speedlimit
+//        if(Math.abs(this.velocity[0]) > 3) { this.velocity[0] = (this.velocity[0]<0) ? -3 : 3; }
+//        if(Math.abs(this.velocity[1]) > 3) { this.velocity[1] = (this.velocity[1]<0) ? -3 : 3; }
 
         //Turn speed into position updates
         this.loc[0] += this.velocity[0];
@@ -116,6 +137,8 @@ class Player extends Movable{
     constructor(game){
         super(game, 32, 32)
         this.weapon = new Weapon(this);
+        this.tileIndex = 218;
+        this.friction = true;
     }
 
     update(keyState){
@@ -139,42 +162,7 @@ class Player extends Movable{
         }
     }
 
-    //TODO: Rewrite with proper vector math, clean up
-    updateMovement(direction){
-        //Get acceleration from input, divided by itself to clamp at 1
-        this.accel[0] = direction[0]/((direction[0] == 0) ? 1 : Math.abs(direction[0]));
-        this.accel[1] = direction[1]/((direction[1] == 0) ? 1 : Math.abs(direction[1]));
 
-        //Add jerk, up to 10 per frame
-        this.accel[0] += Math.min(this.jerk[0],10);
-        this.accel[1] += Math.min(this.jerk[1],10);
-
-        //Reduce jerk by however much was added
-        if(this.jerk[0] != 0) {
-            this.jerk[0] = Math.max(0, Math.abs(this.jerk[0])-10) * Math.sign(this.jerk[0]); //multiplying by math.sign to ensure negative jerk works
-        }
-        if(this.jerk[1] != 0) {
-            this.jerk[1] = Math.max(0, Math.abs(this.jerk[1])-10) * Math.sign(this.jerk[1]);
-        }
-
-        //Apply friction if not accelerating
-        if (this.accel[0] == 0) { this.accel[0] -= this.velocity[0]*0.1; }
-        if (this.accel[1] == 0) { this.accel[1] -= this.velocity[1]*0.1; }
-        //Apply friction if over the speed limit
-        if(Math.abs(this.velocity[0]) > 3) { this.accel[0] -= this.velocity[0]*0.3; }
-        if(Math.abs(this.velocity[1]) > 3) { this.accel[1] -= this.velocity[1]*0.3; }
-
-        //Turn accel into speed
-        this.velocity[0] += this.accel[0];
-        this.velocity[1] += this.accel[1];
-        //Clamp accel based on the speedlimit
-//        if(Math.abs(this.velocity[0]) > 3) { this.velocity[0] = (this.velocity[0]<0) ? -3 : 3; }
-//        if(Math.abs(this.velocity[1]) > 3) { this.velocity[1] = (this.velocity[1]<0) ? -3 : 3; }
-
-        //Turn speed into position updates
-        this.loc[0] += this.velocity[0];
-        this.loc[1] += this.velocity[1];
-    }
 }
 
 class Weapon{
@@ -201,11 +189,22 @@ class Bullet extends Movable{
         super(game, x, y);
         this.velocity[0] = x_dir;
         this.velocity[1] = y_dir;
-        setTimeout(this.markForCleanup, 3000, this);
+        this.tileIndex = 214;
+        this.frameTimer = 0;
     }
 
-    markForCleanup(self){
-        self.markForDeletion = true;
+    update(){
+        super.update();
+        this.frameTimer += 1;
+        if(this.frameTimer >= 10) {
+            this.markForDeletion = true;
+        }
+    }
+}
+
+class Enemy extends Movable{
+    constructor(game, x, y){
+        super(game, x, y)
     }
 }
 
