@@ -10,7 +10,9 @@ class Movable{
         this.maxSpeed = 3; //Speed after which friction starts applying
         this.game = game;
         this.game.movables.push(this);
-        this.tileIndex = -1;
+        this.tileIndex = -1; //Tilesheet index. Set to -1 to render as a square
+        this.life = 2; //Hitpoints. Reduced with hurt, dies when it hits 0
+        this.noCollide = 0; //Frames for which the object does not collide with others and cannot be hurt
         this.markForDeletion = false; //To avoid deleting movables in the middle of the game loop we'll mark for cleanup to delete next frame
     }
 
@@ -22,14 +24,31 @@ class Movable{
     getCenterX(){ return loc[0]+this.size_x/2; }
     getCenterY(){ return loc[1]+this.size_y+2; }
 
+    //Damaage functions, for living mobs
+    hurt(){
+        if(this.noCollide > 0) { return; }
+        this.life -= 1;
+        this.noCollide = 10;
+        if(this.life <= 0){
+            this.die();
+        }
+    }
+    die(){
+        this.markForDeletion = true;
+    }
+
     //Cleanup/Delete methods
     cleanup(){
         var index = this.game.movables.findIndex(e => e == this);
         if (index != -1) { delete this.game.movables[index]; }
     }
 
-    //TODO: Add world collision
+    //Returns the block type it collided with/should act upon
+    //Block 0 is by default
+    //Block 1 if it hit a wall and rebounded
     checkWorldCollision(){
+        var tileType = 0;
+
         //Wall collision - Rebound in the case of most objects
         //Top or bottom collision, flip Y speed
         var top, bottom, left, right, tileSize;
@@ -61,10 +80,9 @@ class Movable{
                 //Move it back and and slow it down a little
                 this.loc[0] = this.loc[0] - (this.velocity[0]/2)
                 this.loc[1] = this.loc[1] - (this.velocity[1]/2)
-                this.velocity[0] *= 0.66
-                this.velocity[1] *= 0.66
-                this.checkWorldCollision()
-                return;
+                this.velocity[0] *= 0.66;
+                this.velocity[1] *= 0.66;
+                return this.checkWorldCollision();
         }
 
         //If the top or bottom two corners are in a wall, we've hit it from above/below
@@ -73,6 +91,7 @@ class Movable{
             wallDistance = (this.velocity[1] > 0) ? this.loc[1]%tileSize : (tileSize-this.loc[1])%tileSize; // checks whether the lower or higher tile boundry is the
             this.loc[1] = this.loc[1] - ( (wallDistance + 0.1) * Math.sign(this.velocity[1]) ); // moves us to the nearest tile boundry
             this.velocity[1] = -this.velocity[1]/2; // flip Y velocity for the rebound
+            tileType = 1; // set tile type to 1 so we know we hit a wall
         }
 
         //Same for the X axis
@@ -80,7 +99,10 @@ class Movable{
         wallDistance = (this.velocity[0] > 0) ? this.loc[0]%tileSize : (tileSize-this.loc[0])%tileSize;
             this.loc[0] = this.loc[0] - ( (wallDistance + 0.1) * Math.sign(this.velocity[0]) );
             this.velocity[0] = -this.velocity[0]/2;
+            tileType = 1;
         }
+
+        return tileType;
     }
 
     collide(object){
@@ -112,6 +134,7 @@ class Movable{
     update(){
         this.updateMovement();
         this.checkWorldCollision();
+        this.noCollide = Math.min(0, this.noCollide -= 1);
     }
 
 }
@@ -119,22 +142,36 @@ class Movable{
 class Player extends Movable{
     constructor(game){
         super(game, 32, 32)
+        this.spawn = this.loc;
         this.weapon = new Weapon(this);
         this.tileIndex = 218;
         this.friction = true;
     }
 
-    update(keyState){
-        this.updateShot(keyState.mousePos, keyState.mouseButton);
-        this.updateMovement(keyState.direction);
-        this.checkWorldCollision();
+    reset(){
+        this.life = 2;
+        this.loc = this.spawn;
+        this.velocity = [0,0];
+        this.accel = [0,0]
+        this.jerk = [0,0];
     }
 
-    updateMovement(direction){
-        //Get acceleration from input, divided by itself to clamp at 1
-        this.accel = (VectorLen(direction) > 1) ? direction : VectorNormalize(direction);
-        //Call parent
-        super.updateMovement();
+    die(){
+        this.reset();
+    }
+
+    update(keyState){
+        this.updateShot(keyState.mousePos, keyState.mouseButton);
+        this.accel = (VectorLen(keyState.direction) > 1) ? keyState.direction : VectorNormalize(keyState.direction);
+        super.update();
+    }
+
+    checkWorldCollision(){
+        var old_speed = this.velocity;
+        var hitType = super.checkWorldCollision();
+        if( VectorLen(old_speed) > this.maxSpeed+1 && hitType == 1 ){
+            this.hurt();
+        }
     }
 
     updateShot(position, button) {
@@ -154,9 +191,11 @@ class Player extends Movable{
     collide(object){
         if(object instanceof Bullet && object.owner != this) {
             this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force))
+            this.hurt();
         }
         if(object instanceof Enemy) {
-            this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, 16))
+            this.jerk = VectorSetLen(object.velocity, 16);
+            this.hurt();
         }
     }
 
@@ -237,6 +276,14 @@ class Enemy extends Movable{
             this.jerk = VectorSum(this.jerk, VectorSetLen(this.velocity, -8))
         }
     }
+
+    checkWorldCollision(){
+        var old_speed = this.velocity;
+        var hitType = super.checkWorldCollision();
+        if( VectorLen(old_speed) > this.maxSpeed+1 && hitType == 1 ){
+            this.hurt();
+        }
+    }
 }
 
 class Game{
@@ -262,6 +309,7 @@ class Game{
         for(var i = 0; i < this.movables.length; i++) {
 			for(var j = i+1; j < this.movables.length; j++) {
 				if(typeof this.movables[i] == 'undefined' || typeof this.movables[j] == 'undefined') continue;
+                if(this.movables[i].noCollide > 0 || this.movables[j].noCollide > 0) continue;
 				if(this.checkCollision(this.movables[i], this.movables[j])) {
                     this.movables[i].collide(this.movables[j]);
                     this.movables[j].collide(this.movables[i]);
