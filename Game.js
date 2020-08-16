@@ -1,5 +1,9 @@
 class Movable{
     constructor(game, x, y){
+        //Add to the games movables list first and foremost
+        this.game = game;
+        this.game.movables.push(this);
+
         this.size_x = 15;
         this.size_y = 15;
         this.loc = [x,y]; //Position (x). Persstent. Updated every frame.
@@ -8,12 +12,11 @@ class Movable{
         this.jerk = [0,0]; //Jerk (x/dt^3). Up to 10 is removed and applied to acceleration every frame. Updated on special-occasion single frames.
         this.friction = false;
         this.maxSpeed = 3; //Speed after which friction starts applying
-        this.game = game;
-        this.game.movables.push(this);
         this.tileIndex = -1; //Tilesheet index. Set to -1 to render as a square
         this.life = 2; //Hitpoints. Reduced with hurt, dies when it hits 0
         this.noCollide = 0; //Frames for which the object does not collide with others and cannot be hurt
         this.markForDeletion = false; //To avoid deleting movables in the middle of the game loop we'll mark for cleanup to delete next frame
+        this.animation = undefined;
     }
 
     //Movable helper functions
@@ -21,14 +24,15 @@ class Movable{
     getBottom(){ return this.loc[1]+this.size_y; }
     getLeft(){ return this.loc[0]; }
     getRight(){ return this.loc[0]+this.size_x; }
-    getCenterX(){ return loc[0]+this.size_x/2; }
-    getCenterY(){ return loc[1]+this.size_y+2; }
+    getCenterX(){ return this.loc[0]+this.size_x/2; }
+    getCenterY(){ return this.loc[1]+this.size_y/2; }
 
     //Damaage functions, for living mobs
     hurt(){
         if(this.noCollide > 0) { return; }
         this.life -= 1;
         this.noCollide = 10;
+        this.animation = new Animation('hurt');
         if(this.life <= 0){
             this.die();
         }
@@ -47,7 +51,7 @@ class Movable{
     //Block 0 is by default
     //Block 1 if it hit a wall and rebounded
     checkWorldCollision(){
-        var tileType = 0;
+        var tileType = new Array;
 
         //Wall collision - Rebound in the case of most objects
         //Top or bottom collision, flip Y speed
@@ -91,7 +95,7 @@ class Movable{
             wallDistance = (this.velocity[1] > 0) ? this.loc[1]%tileSize : (tileSize-this.loc[1])%tileSize; // checks whether the lower or higher tile boundry is the
             this.loc[1] = this.loc[1] - ( (wallDistance + 0.1) * Math.sign(this.velocity[1]) ); // moves us to the nearest tile boundry
             this.velocity[1] = -this.velocity[1]/2; // flip Y velocity for the rebound
-            tileType = 1; // set tile type to 1 so we know we hit a wall
+            tileType.push(1); // set tile type to 1 so we know we hit a wall
         }
 
         //Same for the X axis
@@ -99,7 +103,12 @@ class Movable{
         wallDistance = (this.velocity[0] > 0) ? this.loc[0]%tileSize : (tileSize-this.loc[0])%tileSize;
             this.loc[0] = this.loc[0] - ( (wallDistance + 0.1) * Math.sign(this.velocity[0]) );
             this.velocity[0] = -this.velocity[0]/2;
-            tileType = 1;
+            tileType.push(1);
+        }
+
+        //Check if we're over a gap
+        if(this.game.getTile(this.getCenterX(),this.getCenterY()) == 3) {
+            tileType.push(3);
         }
 
         return tileType;
@@ -134,14 +143,26 @@ class Movable{
     update(){
         this.updateMovement();
         this.checkWorldCollision();
-        this.noCollide = Math.min(0, this.noCollide -= 1);
+        this.updateNoCollide();
+        this.updateAnimation();
+    }
+
+    updateNoCollide(){
+        this.noCollide = Math.max(0, this.noCollide -= 1);
+        if(this.animation && this.animation.name == 'hurt' && this.noCollide == 0) { this.animation = undefined; }
+    }
+
+    updateAnimation(){
+        if(this.animation){
+            this.animation.update();
+        }
     }
 
 }
 
 class Player extends Movable{
     constructor(game){
-        super(game, 32, 32)
+        super(game, 128, 128)
         this.spawn = this.loc;
         this.weapon = new Weapon(this);
         this.tileIndex = 218;
@@ -162,15 +183,18 @@ class Player extends Movable{
 
     update(keyState){
         this.updateShot(keyState.mousePos, keyState.mouseButton);
-        this.accel = (VectorLen(keyState.direction) > 1) ? keyState.direction : VectorNormalize(keyState.direction);
+        this.accel = (VectorLen(keyState.direction) < 1) ? keyState.direction : VectorNormalize(keyState.direction);
         super.update();
     }
 
     checkWorldCollision(){
         var old_speed = this.velocity;
         var hitType = super.checkWorldCollision();
-        if( VectorLen(old_speed) > this.maxSpeed+1 && hitType == 1 ){
+        if( VectorLen(old_speed) > this.maxSpeed+1 && hitType.includes(1) ){
             this.hurt();
+        }
+        if( VectorLen(old_speed) < this.maxSpeed+1 && hitType.includes(3) ){
+            this.die();
         }
     }
 
@@ -189,11 +213,11 @@ class Player extends Movable{
     }
 
     collide(object){
-        if(object instanceof Bullet && object.owner != this) {
+        if(object instanceof Bullet && object.owner != this && this.noCollide == 0) {
             this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force))
             this.hurt();
         }
-        if(object instanceof Enemy) {
+        if(object instanceof Enemy && this.noCollide == 0) {
             this.jerk = VectorSetLen(object.velocity, 16);
             this.hurt();
         }
@@ -258,6 +282,7 @@ class Enemy extends Movable{
         this.tileIndex = 28;
         this.maxSpeed = 2;
         this.friction = true;
+
     }
     update(){
         var player = this.game.player;
@@ -268,21 +293,73 @@ class Enemy extends Movable{
     }
 
     collide(object){
-        if(object instanceof Bullet && object.owner != this) {
+        if(object instanceof Bullet && object.owner != this && this.noCollide == 0) {
             this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force))
         }
 
-        if(object instanceof Player) {
-            this.jerk = VectorSum(this.jerk, VectorSetLen(this.velocity, -8))
+        if(object instanceof Player && this.noCollide == 0) {
+            this.jerk = VectorSum(this.jerk, VectorSetLen(this.velocity, -8)) //An enemy that hits the player bounces back in the direction he came from
+        }
+        if(object instanceof Enemy) {
+            this.jerk = VectorSum(this.jerk, VectorSetLen(VectorSub(this.loc, object.loc), 8)) //Enemies bounce away from eachother
+
         }
     }
 
     checkWorldCollision(){
         var old_speed = this.velocity;
         var hitType = super.checkWorldCollision();
-        if( VectorLen(old_speed) > this.maxSpeed+1 && hitType == 1 ){
+        if( VectorLen(old_speed) > this.maxSpeed+1 && hitType.includes(1) ){
             this.hurt();
         }
+        if( VectorLen(old_speed) < this.maxSpeed+1 && hitType.includes(3) ){
+            this.die();
+        }
+    }
+
+    die(){
+        var animation = new Animation('rotate')
+        animation.setUpdate(function(){this.frame += 90});
+        animation.frame = 45;
+        var ragdoll = new Dummy(this.game, this.loc[0], this.loc[1], animation);
+        ragdoll.tileIndex = this.tileIndex;
+
+        //Call parent to handle death logic
+        super.die();
+    }
+}
+
+//Dummy object for animations, etc
+class Dummy extends Movable{
+    constructor(game, x, y, animation){
+        super(game, x, y);
+        this.animation = animation;
+        this.velocity = [Math.random()*2-4, -15]; //Random X velocity and a vertical Y velocity
+        this.frameTimer = 0;
+    }
+
+    //Dummies don't collide with the world
+    checkWorldCollision(){}
+
+    update(){
+        this.accel = [0,1];
+        this.frameTimer += 1;
+        if(this.frameTimer >= 45) {
+            this.markForDeletion = true;
+        }
+        super.update();
+    }
+}
+
+class Animation{
+    constructor(name){
+        this.name = name;
+        this.frame = 0;
+        this.update = function(){ this.frame++; };
+    }
+
+    setUpdate(func){
+        this.update = func;
     }
 }
 
@@ -291,10 +368,40 @@ class Game{
         this.size_y = size_y;
         this.size_x = size_x;
         this.tileSize = 16;
-        this.movables = [];
-        this.player = new Player(this);
-        this.enemy = new Enemy(this, 128, 128);
-        this.stage = new Arena();
+        this.prepLoad = undefined; //Whether or not to change stage at the end of the update loop
+
+        //Load stage
+        this.movables = new Array();
+        this.stages = [new Arena(this, 0), new Arena(this,1)];
+        this.loadStage(0);
+
+        //Load player after stage to prevent the whole movable hastle
+        this.player = new Player(this); // The first stage will load the player afterwards
+    }
+
+    //Load all movables previously stored in a stage
+    loadStage(id){
+        console.log(id);
+        this.stage = this.stages[id]; //Set current stage
+        if(this.stage.loaded == false){
+            this.movables = new Array(); //Define movables if we're loaing a new stage as the stage will load into it
+            this.stage.load(id); //Load its data for the first time if it hasn't been done yet
+        }
+        else{
+            this.movables = this.stage.movables; //Reference movables as stage movables if they've already been loaded into memory once
+        }
+        if(this.player){
+            this.movables.push(this.player); //Add the player to movables if he exsts
+        }
+    }
+
+    //Store all movables in the stage and stop running them
+    unloadStage(){
+        var playerIndex = this.movables.indexOf(this.player);
+        if(playerIndex != -1){ this.movables.splice(playerIndex,1); } //Removes the player from movables
+        this.stage.movables = this.movables; //Moves current movables to stage movables
+        this.movables = new Array(); //Delete current reference to movables
+        this.stage = undefined;
     }
 
     getTile(x,y){
@@ -309,7 +416,6 @@ class Game{
         for(var i = 0; i < this.movables.length; i++) {
 			for(var j = i+1; j < this.movables.length; j++) {
 				if(typeof this.movables[i] == 'undefined' || typeof this.movables[j] == 'undefined') continue;
-                if(this.movables[i].noCollide > 0 || this.movables[j].noCollide > 0) continue;
 				if(this.checkCollision(this.movables[i], this.movables[j])) {
                     this.movables[i].collide(this.movables[j]);
                     this.movables[j].collide(this.movables[i]);
@@ -319,7 +425,17 @@ class Game{
 
         //Cleanup loop
         this.movables.forEach(e => ((e.markForDeletion) ? e.cleanup() : Function.prototype));
+
+        //Portal activation
+        if(this.prepLoad){
+            this.unloadStage();
+            this.loadStage(this.prepLoad.destination);
+            this.player.loc[0] = (this.prepLoad.destLoc[0] < 0) ? this.player.loc[0] : this.prepLoad.destLoc[0];
+            this.player.loc[1] = (this.prepLoad.destLoc[1] < 0) ? this.player.loc[1] : this.prepLoad.destLoc[1];
+            this.prepLoad = undefined;
+        }
     }
+
 
     //AABB collision check
     checkCollision(obj_a, obj_b){
@@ -334,61 +450,145 @@ class Game{
 
 }
 
+class Portal extends Movable{
+    constructor(game, x, y, destination, x_size, y_size, destLoc){
+        super(game, x*game.tileSize, y*game.tileSize);
+        this.destination = destination;
+        this.size_x = x_size*this.game.tileSize;
+        this.size_y = y_size*this.game.tileSize;
+        this.destLoc = VectorMult(destLoc, game.tileSize);
+    }
+
+    collide(object) {
+        if(object instanceof Player) {
+            this.game.prepLoad = this;
+        }
+    }
+
+    updateMovement(){ } //Prevent movement even if it were to somehow accientally collide
+}
+
 //Level class w/ geometry
 class Arena{
-    constructor(game){
+    constructor(game, id){
         this.game = game;
+        this.loaded = false;
+    }
 
+    load(id){
+        if(this.loaded == true) { return; } //Don't load the stage again if we did it once already
+        switch(id){
+        case 0:
+            //Maps are 512*288 pixels by default, or 32*18 16x16 tiles
+            //Tile map reference (incomplete)
+            /*
+                0 = Transparent
+                48 = Tree
+                248 = Water
+            */
+            this.tileMap = [248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,
+                            248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,
+                            248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,
+                            248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,
+                            248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,
+                            248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,
+                            248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,
+                            248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,
+                            248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,
+                            248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,
+                            248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,
+                            248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,
+                            248,248,248,248,248,248,248,248,248,248,248,248,248,0,0,0,0,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,
+                            248,248,248,248,248,248,248,248,248,248,248,248,248,0,0,0,0,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,
+                            248,248,248,248,248,248,248,248,248,248,248,248,248,0,0,0,0,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,
+                            248,248,248,248,248,248,248,248,248,248,248,248,248,0,0,0,0,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,
+                            248,248,248,248,248,248,248,248,248,248,248,248,248,0,0,0,0,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,
+                            248,248,248,248,248,248,248,248,248,248,248,248,248,0,0,0,0,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248];
+            //Collision map reference (so far)
+            /*
+                0 = Floor
+                1 = Wall
+                2 = (TODO: Hazard)
+                3 = Gap
+            */
+            this.collisionMap =  [3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+                                    3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+                                    3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+                                    3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+                                    3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+                                    3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,
+                                    3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,
+                                    3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,
+                                    3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,
+                                    3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,
+                                    3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,
+                                    3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,
+                                    3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+                                    3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+                                    3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+                                    3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+                                    3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+                                    3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3];
+
+            this.movables = [new Portal(this.game, 13, 18, 1, 4, 1,[-1,0])]; //TODO: set the initial of an arena bar the player, to be loaded/saved on arena entrance/exit
+            break;
+
+        case 1:
         //Maps are 512*288 pixels by default, or 32*18 16x16 tiles
         //Tile map reference (incomplete)
         /*
             0 = Transparent
             48 = Tree
+            248 = Water
         */
-        this.tileMap = [48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,
-                        48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48];
+        this.tileMap = [248,248,248,248,248,248,248,248,248,248,248,248,248,0,0,0,0,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,248,248,248,248,248,0,0,0,0,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,248,248,248,248,248,0,0,0,0,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,248,248,248,248,248,0,0,0,0,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,248,248,248,248,248,0,0,0,0,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,0,0,0,0,0,0,0,0,0,0,0,0,0,0,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248
+                        ,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248];
         //Collision map reference (so far)
         /*
             0 = Floor
             1 = Wall
-            2 = (TODO: Gap)
-            3 = (TODO: timed hazard?)
+            2 = (TODO: Hazard)
+            3 = Gap
         */
-        this.collisionMap =  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-                        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
-        this.portals = []; //TODO: add level transition
-        this.movables; //TODO: set the initial of an arena bar the player, to be loaded/saved on arena entrance/exit
+        this.collisionMap =  [3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+                                ,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3];
+
+        this.movables = [new Portal(this.game,13,-1, 0, 4, 1,[-1,17])]; //TODO: set the initial of an arena bar the player, to be loaded/saved on arena entrance/exit
+        break;
+
+        }
+        this.loaded = true;
     }
 }

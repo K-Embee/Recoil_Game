@@ -7,7 +7,7 @@ window.addEventListener("load", function(event) {
         display.drawTileMap(game.stage.tileMap);
         game.movables.forEach(e => (e.tileIndex == -1) ?
             display.drawRectangle(e.loc[0], e.loc[1], e.size_x, e.size_y) :
-            display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex)
+            display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex, e.animation)
         );
         display.render();
     };
@@ -16,7 +16,7 @@ window.addEventListener("load", function(event) {
     };
 
     var resize = function(event) {
-        display.resize(document.documentElement.clientHeight -32, document.documentElement.clientWidth -32, 9/16);
+        display.resize(document.documentElement.clientHeight-16, document.documentElement.clientWidth-16, 9/16);
         display.render();
     }
 
