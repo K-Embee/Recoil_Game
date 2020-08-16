@@ -83,14 +83,11 @@ class Movable{
         }
     }
 
-    collide(){
-
+    collide(object){
+        //To be filled by individual subclasses with collision types
     }
 
-    updateMovement(direction){
-        //Get acceleration from input, divided by itself to clamp at 1
-        this.accel = (VectorLen(direction) > 1) ? direction : VectorNormalize(direction);
-
+    updateMovement(){
         //Add jerk, up to 10 per frame
         var added_jerk = Math.min(10, VectorLen(this.jerk))
         this.accel = VectorSum(this.accel, VectorSetLen(this.jerk, added_jerk));
@@ -113,7 +110,7 @@ class Movable{
     }
 
     update(){
-        this.updateMovement([0,0]);
+        this.updateMovement();
         this.checkWorldCollision();
     }
 
@@ -133,6 +130,13 @@ class Player extends Movable{
         this.checkWorldCollision();
     }
 
+    updateMovement(direction){
+        //Get acceleration from input, divided by itself to clamp at 1
+        this.accel = (VectorLen(direction) > 1) ? direction : VectorNormalize(direction);
+        //Call parent
+        super.updateMovement();
+    }
+
     updateShot(position, button) {
         if(button == true && this.weapon.onCooldown() == false){
             var vector_x = this.loc[0] - position[0]*this.game.size_x;
@@ -144,6 +148,15 @@ class Player extends Movable{
 
             //Set the player's jerk,
             this.jerk = VectorSetLen([vector_x, vector_y], 25);
+        }
+    }
+
+    collide(object){
+        if(object instanceof Bullet && object.owner != this) {
+            this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force))
+        }
+        if(object instanceof Enemy) {
+            this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, 16))
         }
     }
 
@@ -164,24 +177,37 @@ class Weapon{
     fire(x, y){
         if(!this.onCooldown()) {
             this.lastShot = Date.now();
-            new Bullet(this.user.game, this.user.loc[0], this.user.loc[1], x, y)
+            new Bullet(this.user.game, this.user.loc[0], this.user.loc[1], x, y, this.user)
         }
     }
 }
 
 class Bullet extends Movable{
-    constructor(game, x, y, x_dir, y_dir){
+    constructor(game, x, y, x_dir, y_dir, owner){
         super(game, x, y);
         this.velocity[0] = x_dir;
         this.velocity[1] = y_dir;
         this.tileIndex = 214;
         this.frameTimer = 0;
+        this.force = 45;
+        this.owner = owner;
     }
 
     update(){
         super.update();
         this.frameTimer += 1;
+        this.updateForce();
         if(this.frameTimer >= 10) {
+            this.markForDeletion = true;
+        }
+    }
+
+    updateForce(){
+        this.force -=4;
+    }
+
+    collide(object){
+        if(this.owner != object) {
             this.markForDeletion = true;
         }
     }
@@ -190,6 +216,26 @@ class Bullet extends Movable{
 class Enemy extends Movable{
     constructor(game, x, y){
         super(game, x, y)
+        this.tileIndex = 28;
+        this.maxSpeed = 2;
+        this.friction = true;
+    }
+    update(){
+        var player = this.game.player;
+        if(player){
+            this.accel = VectorSetLen(VectorSub(player.loc, this.loc), 0.3)
+        }
+        super.update();
+    }
+
+    collide(object){
+        if(object instanceof Bullet && object.owner != this) {
+            this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force))
+        }
+
+        if(object instanceof Player) {
+            this.jerk = VectorSum(this.jerk, VectorSetLen(this.velocity, -8))
+        }
     }
 }
 
@@ -200,6 +246,7 @@ class Game{
         this.tileSize = 16;
         this.movables = [];
         this.player = new Player(this);
+        this.enemy = new Enemy(this, 128, 128);
         this.stage = new Arena();
     }
 
