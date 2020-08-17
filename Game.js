@@ -354,7 +354,8 @@ class Enemy_Demon extends Enemy{
         this.tileIndex = 123;
         this.maxSpeed = 3;
         this.friction = true;
-        this.cooldown = 30;
+        this.cooldown = 15 + Math.floor(Math.random()*30);
+        this.fireRingChance = (Math.random() < 0.35) ? 0.65 : 0.35; // Most demons are biased towards the normal fire attack but a few are the opposite
     }
 
     update(){
@@ -363,22 +364,26 @@ class Enemy_Demon extends Enemy{
             var dist = VectorLen(VectorSub(player.loc, this.loc));
             if(dist > 144) { this.accel = VectorSetLen(VectorSub(player.loc, this.loc), 0.3); }
             if(dist < 112) { this.accel = VectorSetLen(VectorSub(player.loc, this.loc), -0.3); }
-            console.log(this.accel);
             if(dist < 256 && this.cooldown == 0) {
-                this.doFireAttack(player);
+                this.doFireAttack(player, Math.random() < this.fireRingChance); //Biased towards the normal version
             }
         }
         this.cooldown = Math.max(0, this.cooldown-1);
         super.update();
     }
 
-    doFireAttack(target){
+    //Spawn fire around the target, either in a 3x3 block on them(fireRing=false) or a 5x5 ring but with the middle 3x3 empty(fireRing=true)
+    doFireAttack(target, fireRing){
         this.cooldown = 90;
         var spawnLoc = [ (Math.floor(target.getCenterX()) - Math.floor(target.getCenterX())%16),
                         (Math.floor(target.getCenterY()) - Math.floor(target.getCenterY())%16)];
-        for(let i = 0; i < 9; i++) {
-            var row = (i%3)-1;
-            var col = Math.floor(i/3)-1;
+        for(let i = 0; i < ((fireRing) ? 25 : 9); i++) {
+            var row = (fireRing) ? (i%5)-2 : (i%3)-1;
+            var col = (fireRing) ? Math.floor(i/5)-2 : Math.floor(i/3)-1;
+
+            //Don't fill the middle tiles during fire ring
+            if(fireRing && row > -2 && row < 2 && col > -2 && col < 2) { continue; }
+
             var target = new Dummy_Targeting(this.game, spawnLoc[0]+row*16, spawnLoc[1]+col*16, this);
             target.tileIndex = 700;
             target.bulletTile = 495;
@@ -386,7 +391,7 @@ class Enemy_Demon extends Enemy{
     }
 
     die(){
-        this.doFireAttack(this);
+        this.doFireAttack(this, false); //Never do the fire ring on death
         super.die();
     }
 
@@ -490,7 +495,6 @@ class Game{
 
     //Load all movables previously stored in a stage
     loadStage(id){
-        console.log(id);
         this.stage = this.stages[id]; //Set current stage
         if(this.stage.loaded == false){
             this.movables = new Array(); //Define movables if we're loaing a new stage as the stage will load into it
