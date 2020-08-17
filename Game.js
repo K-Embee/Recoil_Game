@@ -338,6 +338,29 @@ class Enemy extends Movable{
         //Call parent to handle death logic
         super.die();
     }
+
+    collide(object){
+        if(object instanceof Bullet && object.owner != this && this.noCollide == 0) {
+            this.collideBullet(object);
+        }
+
+        if(object instanceof Player && this.noCollide == 0) {
+            this.collidePlayer(object)
+        }
+        if(object instanceof Enemy && this.noCollide == 0) {
+            this.collideEnemy(object);
+        }
+    }
+    collideBullet(object){
+        this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force))
+        this.hurt()
+    }
+    collidePlayer(object){
+        this.jerk = VectorSum(this.jerk, VectorSetLen(this.velocity, -8)) //An enemy that hits the player bounces back in the direction he came from
+    }
+    collideEnemy(object){
+        this.jerk = VectorSum(this.jerk, VectorSetLen(VectorSub(this.loc, object.loc), 8)) //Enemies bounce away from eachother
+    }
 }
 
 class Enemy_Knight extends Enemy{
@@ -354,7 +377,10 @@ class Enemy_Knight extends Enemy{
         }
         super.update();
     }
-
+    collideBullet(object){
+        this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force*1.35)) //The knight takes more recoil but no damage
+        if(object.owner instanceof Enemy_Demon) { this.hurt(); } //Knights can be hurt by fire but not other bullets
+    }
 }
 
 class Enemy_Basic extends Enemy{
@@ -371,21 +397,6 @@ class Enemy_Basic extends Enemy{
         }
         super.update();
     }
-    collide(object){
-        if(object instanceof Bullet && object.owner != this && this.noCollide == 0) {
-            this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force))
-            this.hurt()
-        }
-
-        if(object instanceof Player && this.noCollide == 0) {
-            this.jerk = VectorSum(this.jerk, VectorSetLen(this.velocity, -8)) //An enemy that hits the player bounces back in the direction he came from
-        }
-        if(object instanceof Enemy) {
-            this.jerk = VectorSum(this.jerk, VectorSetLen(VectorSub(this.loc, object.loc), 8)) //Enemies bounce away from eachother
-
-        }
-    }
-
 
 }
 
@@ -405,20 +416,17 @@ class Enemy_Ogre extends Enemy{
         super.update();
     }
 
-    collide(object){
-        if(object instanceof Bullet && object.owner != this && this.noCollide == 0) {
-            this.hurt();
-            this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force*0.35)) //The ogre takes less recoil
-        }
-
-        if(object instanceof Player && this.noCollide == 0) {
-            this.jerk = VectorSum(this.jerk, VectorSetLen(this.velocity, -4)) //The ogre bounces less
-        }
-        if(object instanceof Enemy) { //The ogre doesn't give way
-
-        }
+    collideEnemy(object){
+        //Ogres don't give way
+    }
+    collideBullet(object){
+        this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force*0.35)) //The ogre takes less recoil
+        this.hurt()
     }
 
+    collidePlayer(object){
+        this.jerk = VectorSum(this.jerk, VectorSetLen(this.velocity, -4)) //The ogre bounces less
+    }
 }
 
 
@@ -468,22 +476,6 @@ class Enemy_Demon extends Enemy{
         this.doFireAttack(this, false); //Never do the fire ring on death
         super.die();
     }
-
-    collide(object){
-        if(object instanceof Bullet && object.owner != this && this.noCollide == 0) {
-            this.hurt();
-            this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force))
-        }
-
-        if(object instanceof Player && this.noCollide == 0) {
-            this.jerk = VectorSum(this.jerk, VectorSetLen(this.velocity, -8)) //An enemy that hits the player bounces back in the direction he came from
-        }
-        if(object instanceof Enemy) {
-            this.jerk = VectorSum(this.jerk, VectorSetLen(VectorSub(this.loc, object.loc), 8)) //Enemies bounce away from eachother
-
-        }
-    }
-
 }
 
 //Dummy object for animations, etc
