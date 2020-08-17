@@ -181,6 +181,8 @@ class Player extends Movable{
         this.velocity = [0,0];
         this.accel = [0,0]
         this.jerk = [0,0];
+        this.noCollide = 30;
+        this.animation = new Animation('hurt');
     }
 
     die(){
@@ -282,7 +284,7 @@ class Bullet extends Movable{
     }
 
     collide(object){
-        if(!(object instanceof Dummy) && this.owner != object) {
+        if(!(object instanceof Dummy) && !(object instanceof Bullet) && this.owner != object) {
             this.markForDeletion = true;
         }
     }
@@ -347,6 +349,71 @@ class Enemy_Knight extends Enemy{
     }
 
 }
+
+class Enemy_Basic extends Enemy{
+    constructor(game, x, y){
+        super(game, x, y)
+        this.tileIndex = 26;
+        this.maxSpeed = 2;
+        this.friction = true;
+    }
+    update(){
+        var player = this.game.player;
+        if(player){
+            this.accel = VectorSetLen(VectorSub(player.loc, this.loc), 0.3)
+        }
+        super.update();
+    }
+    collide(object){
+        if(object instanceof Bullet && object.owner != this && this.noCollide == 0) {
+            this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force))
+            this.hurt()
+        }
+
+        if(object instanceof Player && this.noCollide == 0) {
+            this.jerk = VectorSum(this.jerk, VectorSetLen(this.velocity, -8)) //An enemy that hits the player bounces back in the direction he came from
+        }
+        if(object instanceof Enemy) {
+            this.jerk = VectorSum(this.jerk, VectorSetLen(VectorSub(this.loc, object.loc), 8)) //Enemies bounce away from eachother
+
+        }
+    }
+
+
+}
+
+class Enemy_Ogre extends Enemy{
+    constructor(game, x, y){
+        super(game, x, y)
+        this.tileIndex = 457;
+        this.life = 3;
+        this.maxSpeed = 4;
+        this.friction = true;
+    }
+    update(){
+        var player = this.game.player;
+        if(player){
+            this.accel = VectorSetLen(VectorSub(player.loc, this.loc), 0.4)
+        }
+        super.update();
+    }
+
+    collide(object){
+        if(object instanceof Bullet && object.owner != this && this.noCollide == 0) {
+            this.hurt();
+            this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force*0.35)) //The ogre takes less recoil
+        }
+
+        if(object instanceof Player && this.noCollide == 0) {
+            this.jerk = VectorSum(this.jerk, VectorSetLen(this.velocity, -4)) //The ogre bounces less
+        }
+        if(object instanceof Enemy) { //The ogre doesn't give way
+
+        }
+    }
+
+}
+
 
 class Enemy_Demon extends Enemy{
     constructor(game, x, y){

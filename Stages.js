@@ -178,7 +178,10 @@ class Arena{
 
         this.movables = [new Enemy_Demon(this.game,374,256),
                         new Enemy_Demon(this.game, 420, 256),
-                        new Enemy_Knight(this.game, 290, 256)];
+                        new Enemy_Knight(this.game, 290, 256),
+                        new Enemy_Ogre(this.game, 374, 200),
+                        new Enemy_Basic(this.game, 420, 200),
+                        new Enemy_Basic(this.game, 290, 200)];
         break;
 
 
