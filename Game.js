@@ -16,7 +16,7 @@ class Movable{
         this.life = 2; //Hitpoints. Reduced with hurt, dies when it hits 0
         this.noCollide = 0; //Frames for which the object does not collide with others and cannot be hurt
         this.markForDeletion = false; //To avoid deleting movables in the middle of the game loop we'll mark for cleanup to delete next frame
-        this.animation = undefined;
+        this.animations = new Array();
     }
 
     //Movable helper functions
@@ -32,7 +32,10 @@ class Movable{
         if(this.noCollide > 0) { return; }
         this.life -= 1;
         this.noCollide = 10;
-        this.animation = new Animation('hurt');
+
+        if((this.animations.filter(e => e.name == 'hurt')).length == 0){
+            this.animations.push(new Animation('hurt'));
+        }
         if(this.life <= 0){
             this.die();
         }
@@ -154,14 +157,14 @@ class Movable{
     }
 
     updateNoCollide(){
+        //Reduce hit-invuln and remove amination if it's over
+        var inProgress = this.noCollide > 0;
         this.noCollide = Math.max(0, this.noCollide -= 1);
-        if(this.animation && this.animation.name == 'hurt' && this.noCollide == 0) { this.animation = undefined; }
+        if(this.noCollide == 0 && inProgress) { this.animations = this.animations.filter(e => e.name != 'hurt'); }
     }
 
     updateAnimation(){
-        if(this.animation){
-            this.animation.update();
-        }
+        this.animations.forEach(e => e.update())
     }
 
 }
@@ -182,8 +185,12 @@ class Player extends Movable{
         this.accel = [0,0]
         this.jerk = [0,0];
         this.noCollide = 30;
-        this.animation = new Animation('hurt');
-    }
+
+        //Add hitstun animation if there isn't already
+        if((this.animations.filter(e => e.name == 'hurt')).length == 0) {
+            this.animations.push(new Animation('hurt'));
+         }
+     }
 
     die(){
         //Do the funny animation
@@ -483,7 +490,9 @@ class Enemy_Demon extends Enemy{
 class Dummy extends Movable{
     constructor(game, x, y, animation){
         super(game, x, y);
-        this.animation = animation;
+        if(animation instanceof Animation) {
+            this.animations.push(animation);
+        }
         this.frameTimer = 0;
         this.maxFrames = 45;
     }

@@ -7,7 +7,7 @@ window.addEventListener("load", function(event) {
         display.drawTileMap(game.stage.tileMap);
         game.movables.forEach(e => (e.tileIndex == -1) ?
             display.drawRectangle(e.loc[0], e.loc[1], e.size_x, e.size_y) :
-            display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex, e.animation)
+            display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex, e.animations)
         );
         display.render();
     };

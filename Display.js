@@ -26,31 +26,37 @@ class Display{
         }
     }
 
-    drawTileObject(destX, destY, index, animation){
+    drawTileObject(destX, destY, index, animations){
         var x, y, tileSize = this.tileSheet.tileSize;
         x = this.tileSheet.getX(index) * tileSize;
         y = this.tileSheet.getY(index) * tileSize;
 
         //Draw to the buffer directly if no animation is defined
-        if(animation == undefined){
+        if(!animations || !animations.length || animations.length == 0){
             this.buffer.drawImage(this.tileSheet.image, x, y, tileSize, tileSize, Math.round(destX), Math.round(destY), tileSize, tileSize);
         }
         else {
             //Save buffer settings so we can undo them after all the animation transformations needed
             this.buffer.save()
-            switch(animation.name){
-                case 'hurt':
-                    this.buffer.globalAlpha = 0.4;
-                    this.buffer.drawImage(this.tileSheet.image, x, y, tileSize, tileSize, Math.round(destX), Math.round(destY), tileSize, tileSize)
-                    break;
-                case 'rotate': //rotate animation.frame degrees
-                    this.buffer.translate(Math.round(destX) + tileSize/2, Math.round(destY) + tileSize/2);
-                    this.buffer.rotate(animation.frame * Math.PI / 180); //To radians
-                    this.buffer.drawImage(this.tileSheet.image, x, y, tileSize, tileSize, -tileSize/2, -tileSize/2, tileSize, tileSize)
-                    break;
-                default:
-            }
+            console.log("animations");
+            animations.forEach(e => this.applyTransformation(e, destX, destY, tileSize))
+            this.buffer.drawImage(this.tileSheet.image, x, y, tileSize, tileSize, Math.round(destX), Math.round(destY), tileSize, tileSize)
             this.buffer.restore()
+        }
+    }
+
+    applyTransformation(animation, destX, destY, tileSize){
+        switch(animation.name){
+            case 'hurt':
+                this.buffer.globalAlpha = 0.4;
+                break;
+            case 'rotate': //rotate animation.frame degrees
+                this.buffer.translate(Math.round(destX) + tileSize/2, Math.round(destY) + tileSize/2);
+                this.buffer.rotate(animation.frame * Math.PI / 180); //To radians
+                this.buffer.translate(-(Math.round(destX) + tileSize/2), -(Math.round(destY) + tileSize/2));
+                //this.buffer.drawImage(this.tileSheet.image, x, y, tileSize, tileSize, -tileSize/2, -tileSize/2, tileSize, tileSize)
+                break;
+            default:
         }
     }
 
