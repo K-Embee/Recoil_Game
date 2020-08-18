@@ -38,7 +38,6 @@ class Display{
         else {
             //Save buffer settings so we can undo them after all the animation transformations needed
             this.buffer.save()
-            console.log("animations");
             animations.forEach(e => this.applyTransformation(e, destX, destY, tileSize))
             this.buffer.drawImage(this.tileSheet.image, x, y, tileSize, tileSize, Math.round(destX), Math.round(destY), tileSize, tileSize)
             this.buffer.restore()
@@ -50,11 +49,23 @@ class Display{
             case 'hurt':
                 this.buffer.globalAlpha = 0.4;
                 break;
+            case 'alpha':
+                if(!animation.alpha) { break; }
+                this.buffer.globalAlpha = animation.alpha;
+                break;
             case 'rotate': //rotate animation.frame degrees
+                this.buffer.imageSmoothingEnabled = false;
                 this.buffer.translate(Math.round(destX) + tileSize/2, Math.round(destY) + tileSize/2);
                 this.buffer.rotate(animation.frame * Math.PI / 180); //To radians
                 this.buffer.translate(-(Math.round(destX) + tileSize/2), -(Math.round(destY) + tileSize/2));
                 //this.buffer.drawImage(this.tileSheet.image, x, y, tileSize, tileSize, -tileSize/2, -tileSize/2, tileSize, tileSize)
+                break;
+            case 'scale': //scale by x,y times
+                if(!animation.scaleX || !animation.scaleY) { break; }
+                this.buffer.imageSmoothingEnabled = false;
+                this.buffer.translate(Math.round(destX) + tileSize/2, Math.round(destY) + tileSize/2);
+                this.buffer.scale(animation.scaleX, animation.scaleY);
+                this.buffer.translate(-(Math.round(destX) + tileSize/2), -(Math.round(destY) + tileSize/2));
                 break;
             default:
         }

@@ -3,6 +3,7 @@ class Arena{
     constructor(game, id){
         this.game = game;
         this.loaded = false;
+        this.id = id;
     }
 
     load(id){
@@ -65,8 +66,7 @@ class Arena{
                                     3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
                                     3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3];
 
-            this.movables = [new Portal(this.game, 13, 18, 1, 4, 1,[-1,0]),
-                            new Enemy(this.game, 256, 256)]; //TODO: set the initial of an arena bar the player, to be loaded/saved on arena entrance/exit
+            this.movables = [new Portal(this.game, 13, 18, 1, 4, 1,[-1,0])];
             break;
 
         case 1:
@@ -121,7 +121,8 @@ class Arena{
                                 ,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
                                 ,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3];
 
-        this.movables = [new Portal(this.game,13,-1, 0, 4, 1,[-1,17])]; //TODO: set the initial of an arena bar the player, to be loaded/saved on arena entrance/exit
+        this.movables = [new Portal(this.game,13,-1, 0, 4, 1,[-1,17]),
+                        new Dummy_Gun(this.game, 232, 144)];
         break;
 
         case 99:
@@ -181,7 +182,8 @@ class Arena{
                         new Enemy_Knight(this.game, 290, 256),
                         new Enemy_Ogre(this.game, 374, 200),
                         new Enemy_Basic(this.game, 420, 200),
-                        new Enemy_Basic(this.game, 290, 200)];
+                        new Enemy_Basic(this.game, 290, 200),
+                        new Spawn(this.game, 480, 64, 99)];
         break;
 
 

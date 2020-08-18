@@ -172,7 +172,8 @@ class Movable{
 class Player extends Movable{
     constructor(game){
         super(game, 128, 128)
-        this.spawn = this.loc;
+        this.spawn = new Spawn(this.game, this.loc[0], this.loc[1], this.game.stage.id); // Creating a new spawn in the player spawn is kinda weird but we never destroy it so w/e
+        this.spawn.active = true;
         this.weapon = new Weapon(this);
         this.tileIndex = 218;
         this.friction = true;
@@ -180,9 +181,14 @@ class Player extends Movable{
 
     reset(){
         this.life = 2;
-        this.loc = this.spawn;
+        this.loc = this.spawn.loc;
+
+        if(this.game.stage.id != this.spawn.destination){ //If we died in another stage, go back there
+            this.game.prepLoad = this.spawn;
+        }
+
         this.velocity = [0,0];
-        this.accel = [0,0]
+        this.accel = [0,0];
         this.jerk = [0,0];
         this.noCollide = 30;
 
@@ -203,6 +209,7 @@ class Player extends Movable{
     }
 
     update(keyState){
+        this.weapon.update();
         this.updateShot(keyState.mousePos, keyState.mouseButton);
         this.accel = (VectorLen(keyState.direction) < 1) ? keyState.direction : VectorNormalize(keyState.direction);
         super.update();
@@ -250,19 +257,24 @@ class Player extends Movable{
 class Weapon{
     constructor(user){
         this.user = user
+        this.active = false;
         this.lastShot = 0;
-        this.cooldown = 750;
+        this.cooldown = 23;
     }
 
     onCooldown(){
-        return (Date.now() - this.lastShot < this.cooldown);
+        return (!this.active || this.lastShot > 0);
     }
 
     fire(x, y){
         if(!this.onCooldown()) {
-            this.lastShot = Date.now();
+            this.lastShot = this.cooldown;
             new Bullet(this.user.game, this.user.loc[0], this.user.loc[1], x, y, this.user)
         }
+    }
+
+    update(){
+        this.lastShot = Math.max(this.lastShot-1, 0);
     }
 }
 
@@ -315,7 +327,7 @@ class Enemy extends Movable{
             this.jerk = VectorSum(this.jerk, VectorSetLen(this.velocity, -8)) //An enemy that hits the player bounces back in the direction he came from
         }
         if(object instanceof Enemy) {
-            this.jerk = VectorSum(this.jerk, VectorSetLen(VectorSub(this.loc, object.loc), 8)) //Enemies bounce away from eachother
+            this.jerk = VectorSum(this.jerk, VectorSetLen(VectorSub(this.loc, object.loc), 3)) //Enemies bounce away from eachother
 
         }
     }
@@ -378,7 +390,7 @@ class Enemy_Knight extends Enemy{
         super.update();
     }
     collideBullet(object){
-        this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force*1.35)) //The knight takes more recoil but no damage
+        this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force*1.15)) //The knight takes more recoil but no damage
         if(object.owner instanceof Enemy_Demon) { this.hurt(); } //Knights can be hurt by fire but not other bullets
     }
 }
@@ -493,7 +505,7 @@ class Dummy extends Movable{
 
     update(){
         this.frameTimer += 1;
-        if(this.frameTimer >= this.maxFrames) {
+        if(this.maxFrames != -1 && this.frameTimer >= this.maxFrames) {
             this.markForDeletion = true;
         }
         super.update();
@@ -532,6 +544,31 @@ class Dummy_Targeting extends Dummy{
     }
 }
 
+class Dummy_Gun extends Dummy{ //A dummy item to give the player its gun
+    constructor(game, x, y){
+        super(game, x, y);
+        this.maxFrames = -1;
+        this.tileIndex = 471;
+        this.velocity[1] = -0.75;
+    }
+    collide(object){
+        if(object instanceof Player){
+            this.maxFrames = 0;
+            object.weapon.active = true;
+        }
+    }
+
+    update(){
+        if(this.frameTimer%30 < 15) {
+            this.accel[1] = 0.1;
+        }
+        else{
+            this.accel[1] = -0.1;
+        }
+        super.update();
+    }
+}
+
 
 class Animation{
     constructor(name){
@@ -554,11 +591,21 @@ class Game{
 
         //Load stage
         this.movables = new Array();
-        this.stages = (new Array()); this.stages.length = 99; this.stages.push(new Arena(this, 99)); //[new Arena(this, 0), new Arena(this,1)];
-        this.loadStage(99); //Change back to 0 later
+        //this.stages = (new Array()); this.stages.length = 99; this.stages.push(new Arena(this, 99));
+        this.stages = [new Arena(this, 0), new Arena(this,1)];
+        this.loadStage(0); //Change to 99 for tests
 
         //Load player after stage to prevent the whole movable hastle
         this.player = new Player(this); // The first stage will load the player afterwards
+
+        //Make the UI (TODO: Less hacky)
+        this.ui = new Object();
+        this.ui.tileIndex = 522;
+        var anim = new Animation('scale');
+        anim.scaleX = anim.scaleY  = 2;
+        var anim2 = new Animation('alpha');
+        anim2.alpha = 0.7;
+        this.ui.animations = [anim/*, anim2*/];
     }
 
     //Load all movables previously stored in a stage
@@ -605,10 +652,13 @@ class Game{
 			}
 		}
 
+        //Update UI
+        this.ui.tileIndex = 520 + this.player.life;
+
         //Cleanup loop
         this.movables.forEach(e => ((e.markForDeletion) ? e.cleanup() : Function.prototype));
 
-        //Portal activation
+        //Portal/Spawn activation
         if(this.prepLoad){
             this.unloadStage();
             this.loadStage(this.prepLoad.destination);
@@ -630,6 +680,35 @@ class Game{
         return true; //if overlap on both axes then true
     }
 
+}
+
+class Spawn extends Movable{
+    constructor(game, x, y, stage){
+        super(game, x, y);
+        this.active = false;
+        this.tileIndex = 401;
+        this.animations.push(new Animation('alpha'));
+        this.animations[0].alpha = 0.4;
+        this.destination = stage;
+        this.destLoc = this.loc;
+    }
+
+    collide(object) {
+        if(object instanceof Player) {
+            if(this.game.player.spawn != this){
+                this.game.player.spawn.active = false;
+                this.game.player.spawn = this;
+                this.active = true;
+            }
+        }
+    }
+
+    update(){
+        this.animations[0].alpha = (this.active) ? 1 : 0.4;
+        super.update();
+    }
+
+    updateMovement(){ } //Prevent movement even if it were to somehow accientally collide
 }
 
 class Portal extends Movable{

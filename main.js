@@ -9,6 +9,7 @@ window.addEventListener("load", function(event) {
             display.drawRectangle(e.loc[0], e.loc[1], e.size_x, e.size_y) :
             display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex, e.animations)
         );
+        display.drawTileObject(16, 16, game.ui.tileIndex, game.ui.animations);
         display.render();
     };
     var update = function() {
