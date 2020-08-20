@@ -5,10 +5,12 @@ window.addEventListener("load", function(event) {
     var render = function() {
         display.fill("#000000" );
         display.drawTileMap(game.stage.tileMap);
-        game.movables.forEach(e => (e.tileIndex == -1) ?
+        game.movables.forEach(e => (e == game.player) ? Function.prototype :
+            (e.tileIndex == -1) ?
             display.drawRectangle(e.loc[0], e.loc[1], e.size_x, e.size_y) :
             display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex, e.animations)
         );
+        display.drawTileObject(game.player.loc[0], game.player.loc[1], game.player.tileIndex, game.player.animations)
         display.drawTileObject(16, 16, game.ui.tileIndex, game.ui.animations);
         display.render();
     };
@@ -48,7 +50,7 @@ window.addEventListener("load", function(event) {
         requestAnimationFrame(run);
     }, {once:true});
 
-    display.tileSheet.image.src = "colored_transparent_packed.png";
+    display.tileSheet.image.src = "custom_pack.png";
 
     // Game engine code
 

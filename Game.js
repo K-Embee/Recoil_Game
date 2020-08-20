@@ -179,8 +179,14 @@ class Movable{
     }
 
     updateMovement(){
+        //Sanity check jerk
+        if(this.jerk == null || this.jerk == undefined || isNaN(this.jerk[0]) || isNaN(this.jerk[1])){
+            this.jerk = [0,0];
+        }
+
         //Add jerk, up to 10 per frame
         var added_jerk = Math.min(10, VectorLen(this.jerk))
+
         this.accel = VectorSum(this.accel, VectorSetLen(this.jerk, added_jerk));
 
         //Reduce jerk by however much was added to accel
@@ -193,6 +199,13 @@ class Movable{
             if(VectorLen(this.velocity) > this.maxSpeed) { this.accel = VectorSub(this.accel, VectorMult(this.velocity, 0.3)); }
         }
 
+        //Sanity check accel + velocoity
+        if(this.accel == null || this.accel == undefined || isNaN(this.accel[0]) || isNaN(this.accel[1])){
+            this.accel = [0,0];
+        }
+        if(this.velocity == null || this.velocity == undefined || isNaN(this.velocity[0]) || isNaN(this.velocity[1])){
+            this.velocity = [0,0];
+        }
         //Turn accel into speed
         this.velocity = VectorSum(this.velocity, this.accel);
 
@@ -264,6 +277,29 @@ class Player extends Movable{
         this.updateShot(keyState.mousePos, keyState.mouseButton);
         this.accel = (VectorLen(keyState.direction) < 1) ? keyState.direction : VectorNormalize(keyState.direction);
         super.update();
+
+    }
+
+    updateAnimation(){
+        //Set up the waddle
+        if (this.animations.filter(e => e.name == 'waddle').length == 0) {
+            this.waddle = new Animation('waddle');
+            this.animations.push(this.waddle);
+        }
+        //Do the cool ghost effect
+        if(VectorLen(this.velocity) > 4){
+            new Dummy_Ghost(this.game, this.loc[0], this.loc[1], this);
+        }
+        //Waddle if walking
+        if(VectorLen(this.velocity) > 1 && VectorLen(this.velocity) <= 4){
+            this.waddle.setUpdate(function(){ this.frame++; this.angle = 10*Math.sin(this.frame) });
+        }
+        else{
+            this.waddle.setUpdate(function(){ this.frame++; this.angle = 0; });
+        }
+
+
+        super.updateAnimation();
     }
 
     checkWorldCollision(){
@@ -571,8 +607,8 @@ class Dummy_DeathAnim extends Dummy{
     //Function to play the funny animation
     deathAnim(){
         var animation = new Animation('rotate')
-        animation.setUpdate(function(){this.frame += 90});
-        animation.frame = 45;
+        animation.setUpdate(function(){this.angle += 90});
+        animation.angle = 45;
         return animation;
     }
     update(){
@@ -620,6 +656,18 @@ class Dummy_Gun extends Dummy{ //A dummy item to give the player its gun
     }
 }
 
+class Dummy_Ghost extends Dummy{
+    constructor(game, x, y, owner){
+        super(game, x, y, new Animation('alpha'));
+        this.animations[0].alpha = 0.5;
+        this.tileIndex = owner.tileIndex;
+        this.maxFrames = 5;
+    }
+    update(){
+        this.animations[0].alpha -= 0.1;
+        super.update();
+    }
+}
 
 class Animation{
     constructor(name){

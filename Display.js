@@ -53,10 +53,11 @@ class Display{
                 if(animation.alpha == null || animation.alpha == undefined) { break; }
                 this.buffer.globalAlpha = animation.alpha;
                 break;
+            case 'waddle': //rotate  but a special case
             case 'rotate': //rotate animation.frame degrees
                 this.buffer.imageSmoothingEnabled = false;
                 this.buffer.translate(Math.round(destX) + tileSize/2, Math.round(destY) + tileSize/2);
-                this.buffer.rotate(animation.frame * Math.PI / 180); //To radians
+                this.buffer.rotate(animation.angle * Math.PI / 180); //To radians
                 this.buffer.translate(-(Math.round(destX) + tileSize/2), -(Math.round(destY) + tileSize/2));
                 //this.buffer.drawImage(this.tileSheet.image, x, y, tileSize, tileSize, -tileSize/2, -tileSize/2, tileSize, tileSize)
                 break;
