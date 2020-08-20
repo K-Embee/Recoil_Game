@@ -98,19 +98,70 @@ class Movable{
                 }
         }
 
-        //If the top or bottom two corners are in a wall, we've hit it from above/below
+        var singleCornerCollision = ((tl == 1 && bl != 1 && br != 1 && tr != 1) ||
+                                    (tl != 1 && bl == 1 && br != 1 && tr != 1) ||
+                                    (tl != 1 && bl != 1 && br == 1 && tr != 1) ||
+                                    (tl != 1 && bl != 1 && br != 1 && tr == 1));
+
+        //If only one corner has collided with a wall, move out based on the axis
+/*        if(singleCornerCollision){
+            if(tl == 1){ //Top-left corner means a bottom-right corner wall is being hit
+                if(this.velocity[1] < 0){ //If heading upwards, move right to get out of the wall (hit on the left side) asap without interrupting momentum
+                    this.loc[0] += this.velocity[0];
+                }
+                if(this.velocity[0] < 0){ //If heading rightwards, move down to get out of the wall (hit on the top side) asap without interrupting momentum
+                    this.loc[1] += this.velocity[1];
+                }
+                //If moving directly into the corner, both statements will fire
+            }
+            else if(bl == 1){ //Bottom-left corner means a top-right corner wall is being hit
+                if(this.velocity[1] > 0 ) { this.velocity[0] += 1; } //Heading downwards, hit wall on left, move right
+                if(this.velocity[0] < 0 ) { this.velocity[1] -= 1; } //Heading leftwards, hit wall on bottom, move up
+            }
+            else if(tr == 1){
+                if(this.velocity[1] < 0 ) { this.velocity[0] -= 1; } //Heading upwards, hit wall on right, move left
+                if(this.velocity[0] > 0 ) { this.velocity[1] += 1; } //heading rightwards, hit wall on top, move down
+            }
+            else if(br == 1){
+                if(this.velocity[1] > 0 ) { this.velocity[0] -= 1; } //Heading downwards, hit wall on right, move left
+                if(this.velocity[0] > 0 ) { this.velocity[1] -= 1; } //Heading rightwards, hit wall on bottom, move up
+            }
+        }
+*/
+
+        //If a single corner collided, figure out which axis is deeper in and force the collision on the other one
+        if(singleCornerCollision){
+            var wallDistanceX;
+            if(tl == 1 || bl == 1) { wallDistanceX = tileSize-(this.getLeft()%tileSize); }
+            else                   { wallDistanceX = this.getRight()%tileSize }
+            var wallDistanceY;
+            if(tl == 1 || tr == 1){ wallDistanceY = tileSize-(this.getTop()%tileSize); }
+            else                  { wallDistanceY = this.getBottom()%tileSize; }
+            if(wallDistanceX < tileSize && wallDistanceY < tileSize){
+                if(wallDistanceX > wallDistanceY){ //If we're further in on the X axis than the Y axis, bounce away on the Y axis
+                    this.loc[1] = this.loc[1] + ( (wallDistanceY + 0.05) * ((tr == 1 || tl == 1) ? 1 : -1) );
+                    this.velocity[1] = -this.velocity[1]/2;
+                }
+                else{
+                    this.loc[0] = this.loc[0] + ( (wallDistanceX + 0.05) * ((tl == 1 || bl == 1) ? 1 : -1) );
+                    this.velocity[0] = -this.velocity[0]/2;
+                }
+            }
+        }
+
+        //If the top or bottom two corners are in a wall, we've hit it from above/below. Check for corner collisions too
         if( (tl == 1 && tr == 1) || (bl == 1 && br == 1) ) {
             //Move out of the tile, we can tell which way to go based on our current velocity
-            wallDistance = (this.velocity[1] > 0) ? this.loc[1]%tileSize : (tileSize-this.loc[1])%tileSize; // checks whether the lower or higher tile boundry is the
-            this.loc[1] = this.loc[1] - ( (wallDistance + 0.1) * Math.sign(this.velocity[1]) ); // moves us to the nearest tile boundry
+            wallDistance = (this.velocity[1] > 0) ? this.loc[1]%tileSize : (Math.floor(this.loc[1])*tileSize-this.loc[1])%tileSize; // checks whether the lower or higher tile boundry is the one activated. Multiplied by math.floor.thisloc to prevent it from becoming negative and messing up the modulos
+            this.loc[1] = this.loc[1] - ( (wallDistance - 0.1) * Math.sign(this.velocity[1]) ); // moves us to the nearest tile boundry
             this.velocity[1] = -this.velocity[1]/2; // flip Y velocity for the rebound
             tileType.push(1); // set tile type to 1 so we know we hit a wall
         }
 
         //Same for the X axis
         if( (tl == 1 && bl == 1) || (tr == 1 && br == 1) ) {
-        wallDistance = (this.velocity[0] > 0) ? this.loc[0]%tileSize : (tileSize-this.loc[0])%tileSize;
-            this.loc[0] = this.loc[0] - ( (wallDistance + 0.1) * Math.sign(this.velocity[0]) );
+            wallDistance = (this.velocity[0] > 0) ? this.loc[0]%tileSize : (Math.floor(this.loc[0])*tileSize-this.loc[0])%tileSize;
+            this.loc[0] = this.loc[0] - ( (wallDistance - 0.1) * Math.sign(this.velocity[0]) );
             this.velocity[0] = -this.velocity[0]/2;
             tileType.push(1);
         }
@@ -257,7 +308,7 @@ class Player extends Movable{
 class Weapon{
     constructor(user){
         this.user = user
-        this.active = false;
+        this.active = true;
         this.lastShot = 0;
         this.cooldown = 23;
     }
@@ -303,7 +354,7 @@ class Bullet extends Movable{
     }
 
     collide(object){
-        if(!(object instanceof Dummy) && !(object instanceof Bullet) && this.owner != object) {
+        if(!(object instanceof Dummy) && !(object instanceof Bullet) && !(object instanceof Spawn) && this.owner != object) {
             this.markForDeletion = true;
         }
     }
@@ -592,7 +643,10 @@ class Game{
         //Load stage
         this.movables = new Array();
         //this.stages = (new Array()); this.stages.length = 99; this.stages.push(new Arena(this, 99));
-        this.stages = [new Arena(this, 0), new Arena(this,1)];
+        this.stages = new Array();
+        for(let i = 0; i < 14; i++){
+            this.stages.push(new Arena(this, i));
+        }
         this.loadStage(0); //Change to 99 for tests
 
         //Load player after stage to prevent the whole movable hastle
@@ -709,6 +763,7 @@ class Spawn extends Movable{
     }
 
     updateMovement(){ } //Prevent movement even if it were to somehow accientally collide
+    checkWorldCollision(){ } //Don't check world collision aaaaa
 }
 
 class Portal extends Movable{
@@ -718,6 +773,11 @@ class Portal extends Movable{
         this.size_x = x_size*this.game.tileSize;
         this.size_y = y_size*this.game.tileSize;
         this.destLoc = VectorMult(destLoc, game.tileSize);
+
+        //Make transparent
+        this.tileIndex = 1;
+        this.animations.push(new Animation('alpha'));
+        this.animations[0].alpha = 0.0;
     }
 
     collide(object) {
@@ -727,4 +787,5 @@ class Portal extends Movable{
     }
 
     updateMovement(){ } //Prevent movement even if it were to somehow accientally collide
+    checkWorldCollision(){ } //Don't check world collision aaaaa
 }

@@ -50,7 +50,7 @@ class Display{
                 this.buffer.globalAlpha = 0.4;
                 break;
             case 'alpha':
-                if(!animation.alpha) { break; }
+                if(animation.alpha == null || animation.alpha == undefined) { break; }
                 this.buffer.globalAlpha = animation.alpha;
                 break;
             case 'rotate': //rotate animation.frame degrees
