@@ -235,10 +235,11 @@ class Movable{
 
 class Player extends Movable{
     constructor(game){
-        super(game, 128, 128)
+        super(game, 196, 128)
         this.spawn = new Spawn(this.game, this.loc[0], this.loc[1], this.game.stage.id); // Creating a new spawn in the player spawn is kinda weird but we never destroy it so w/e
         this.spawn.active = true;
         this.weapon = new Weapon(this);
+        this.key = false;
         this.tileIndex = 218;
         this.friction = true;
     }
@@ -254,7 +255,7 @@ class Player extends Movable{
         this.velocity = [0,0];
         this.accel = [0,0];
         this.jerk = [0,0];
-        this.noCollide = 30;
+        this.noCollide = 20;
 
         //Add hitstun animation if there isn't already
         if((this.animations.filter(e => e.name == 'hurt')).length == 0) {
@@ -272,12 +273,21 @@ class Player extends Movable{
         this.reset(); //Return the player to spawn
     }
 
+    hurt(){
+        super.hurt();
+        this.noCollide = 30;
+    }
+
     update(keyState){
         this.weapon.update();
         this.updateShot(keyState.mousePos, keyState.mouseButton);
         this.accel = (VectorLen(keyState.direction) < 1) ? keyState.direction : VectorNormalize(keyState.direction);
         super.update();
 
+        //OOB check
+        if(this.loc[0] < -32 || this.loc[1] < -32 || this.loc[0] > this.game.size_x+32 || this.loc[1] > this.game.size_y+31) {
+            reset();
+        }
     }
 
     updateAnimation(){
@@ -344,7 +354,7 @@ class Player extends Movable{
 class Weapon{
     constructor(user){
         this.user = user
-        this.active = true;
+        this.active = false;
         this.lastShot = 0;
         this.cooldown = 23;
     }
@@ -642,6 +652,9 @@ class Dummy_Gun extends Dummy{ //A dummy item to give the player its gun
         if(object instanceof Player){
             this.maxFrames = 0;
             object.weapon.active = true;
+            if(this.game.ui[1].animations[0].alpha == 0){ //(TODO: Seriously, make UI a class)
+                this.game.ui[1].animations[0].alpha = 1
+            }
         }
     }
 
@@ -653,6 +666,22 @@ class Dummy_Gun extends Dummy{ //A dummy item to give the player its gun
             this.accel[1] = -0.1;
         }
         super.update();
+    }
+}
+
+class Dummy_Key extends Dummy_Gun{
+    constructor(game, x, y){
+        super(game, x, y);
+        this.tileIndex = 561;
+    }
+    collide(object){
+        if(object instanceof Player){
+            this.maxFrames = 0;
+            object.key = true;
+            if(this.game.ui[1].animations[0].alpha == 0){ //(TODO: Seriously, make UI a class)
+                this.game.ui[1].animations[0].alpha = 1
+            }
+        }
     }
 }
 
@@ -692,7 +721,7 @@ class Game{
         this.movables = new Array();
         //this.stages = (new Array()); this.stages.length = 99; this.stages.push(new Arena(this, 99));
         this.stages = new Array();
-        for(let i = 0; i < 14; i++){
+        for(let i = 0; i < 29; i++){
             this.stages.push(new Arena(this, i));
         }
         this.loadStage(0); //Change to 99 for tests
@@ -700,14 +729,9 @@ class Game{
         //Load player after stage to prevent the whole movable hastle
         this.player = new Player(this); // The first stage will load the player afterwards
 
-        //Make the UI (TODO: Less hacky)
-        this.ui = new Object();
-        this.ui.tileIndex = 522;
-        var anim = new Animation('scale');
-        anim.scaleX = anim.scaleY  = 2;
-        var anim2 = new Animation('alpha');
-        anim2.alpha = 0.7;
-        this.ui.animations = [anim/*, anim2*/];
+        //Make the UI
+        this.ui = new Array();
+        this.makeUI();
     }
 
     //Load all movables previously stored in a stage
@@ -754,8 +778,10 @@ class Game{
 			}
 		}
 
-        //Update UI
-        this.ui.tileIndex = 520 + this.player.life;
+        //Update UI (TODO: Turn UI into a proper class already)
+        this.ui[0].tileIndex = 520 + this.player.life;
+        this.ui[1].loc = [keyState.mousePos[0]*this.size_x-8, keyState.mousePos[1]*this.size_y-8];
+        this.ui.forEach(e => e.animations.forEach(f => f.update()));
 
         //Cleanup loop
         this.movables.forEach(e => ((e.markForDeletion) ? e.cleanup() : Function.prototype));
@@ -780,6 +806,28 @@ class Game{
             return false;
         }
         return true; //if overlap on both axes then true
+    }
+
+    //Build the UI on game load
+    makeUI(){
+        this.ui = new Array();
+
+        var hearts = new Object();
+        var cursor = new Object();
+        hearts.tileIndex = 522;
+        hearts.loc = [16, 16];
+        cursor.tileIndex = 696;
+
+        var anim = new Animation('scale');
+        var anim2 = new Animation('alpha');
+        var anim3 = new Animation('rotate');
+        anim.scaleX = anim.scaleY  = 2;
+        anim2.alpha = 0;
+        anim3.angle = 0; anim3.setUpdate(function(){ this.frame++; this.angle+=2 })
+        hearts.animations = [anim];
+        cursor.animations = [anim2, anim3];
+
+        this.ui.push(hearts); this.ui.push(cursor);
     }
 
 }
@@ -836,4 +884,24 @@ class Portal extends Movable{
 
     updateMovement(){ } //Prevent movement even if it were to somehow accientally collide
     checkWorldCollision(){ } //Don't check world collision aaaaa
+}
+
+class Portal_Key extends Portal{
+    constructor(game, x, y, destination, x_size, y_size, destLoc){
+        super(game, x, y, destination, x_size, y_size, destLoc);
+
+        this.tileIndex = 432;
+        this.animations = new Array()
+    }
+
+    collide(object) {
+        if(object instanceof Player && object.key == true) {
+            this.game.prepLoad = this;
+        }
+    }
+
+    update(){
+        super.update()
+        this.tileIndex = (this.game.player.key) ? 434 : 432;
+    }
 }

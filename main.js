@@ -11,7 +11,7 @@ window.addEventListener("load", function(event) {
             display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex, e.animations)
         );
         display.drawTileObject(game.player.loc[0], game.player.loc[1], game.player.tileIndex, game.player.animations)
-        display.drawTileObject(16, 16, game.ui.tileIndex, game.ui.animations);
+        game.ui.forEach(e => display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex, e.animations));
         display.render();
     };
     var update = function() {
