@@ -4,18 +4,33 @@ window.addEventListener("load", function(event) {
 
     var render = function() {
         display.fill("#000000" );
-        display.drawTileMap(game.stage.tileMap);
-        game.movables.forEach(e => (e == game.player) ? Function.prototype :
-            (e.tileIndex == -1) ?
-            display.drawRectangle(e.loc[0], e.loc[1], e.size_x, e.size_y) :
-            display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex, e.animations)
-        );
-        display.drawTileObject(game.player.loc[0], game.player.loc[1], game.player.tileIndex, game.player.animations)
-        game.ui.forEach(e => display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex, e.animations));
+
+        //if we're still on the menu, draw it
+        if(!game){
+            display.drawMenu();
+        }
+        else{ //else, draw the game
+            display.drawTileMap(game.stage.tileMap);
+            game.movables.forEach(e => (e == game.player) ? Function.prototype :
+                (e.tileIndex == -1) ?
+                display.drawRectangle(e.loc[0], e.loc[1], e.size_x, e.size_y) :
+                display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex, e.animations)
+            );
+            display.drawTileObject(game.player.loc[0], game.player.loc[1], game.player.tileIndex, game.player.animations)
+            game.ui.forEach(e => display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex, e.animations));
+            if(game.boss){
+                game.boss.bossUI.forEach(e => display.drawTileObject(e.loc[0], e.loc[1], e.tileIndex, e.animations));
+            }
+        }
         display.render();
     };
     var update = function() {
-        game.update(controller.keyState);
+        if(game){
+            game.update(controller.keyState);
+            if(game.end){
+                game = null;
+            }
+        }
     };
 
     var resize = function(event) {
@@ -32,10 +47,10 @@ window.addEventListener("load", function(event) {
 
     var controller = new Controller();
     var display = new Display(document.getElementById("myCanvas"), size_x, size_y, tile_size, tileMap_x, tileMap_y);
-    var game = new Game(size_x, size_y);
+    var game //= new Game(size_x, size_y);
 
     // Event Listeners
-    window.addEventListener ("keydown", function(event) { controller.keyStateSet(event); } );
+    window.addEventListener ("keydown", function(event) { controller.keyStateSet(event); if(event.keyCode == 32) {menuNext();} } );
     window.addEventListener ("keyup", function(event) { controller.keyStateUnset(event); } );
     window.addEventListener ("resize", resize);
     display.context.canvas.addEventListener ('mousemove', function(event) { controller.mouseEvent(event,
@@ -51,6 +66,21 @@ window.addEventListener("load", function(event) {
     }, {once:true});
 
     display.tileSheet.image.src = "custom_pack.png";
+    display.menuImg = [new Image(),new Image(),new Image()];
+    display.menuImg[0].src = "menu.png";
+    display.menuImg[1].src = "howto.png";
+    display.menuImg[2].src = "ending.png";
+    render();
+
+    function menuNext(){
+        if(!game){
+            display.menuIndex = ((display.menuIndex + 1) % 3);
+            if(display.menuIndex == 2) {
+                game = new Game(size_x, size_y);
+                lastTime = Date.now();
+            }
+        }
+    }
 
     // Game engine code
 

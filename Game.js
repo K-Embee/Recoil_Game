@@ -286,7 +286,7 @@ class Player extends Movable{
 
         //OOB check
         if(this.loc[0] < -32 || this.loc[1] < -32 || this.loc[0] > this.game.size_x+32 || this.loc[1] > this.game.size_y+31) {
-            reset();
+            this.reset();
         }
     }
 
@@ -404,6 +404,13 @@ class Bullet extends Movable{
             this.markForDeletion = true;
         }
     }
+
+    checkWorldCollision(){
+        var hitType = super.checkWorldCollision();
+        if( hitType == 1){
+            this.markForDeletion = true;
+        }
+    }
 }
 
 class Enemy extends Movable{
@@ -468,7 +475,7 @@ class Enemy extends Movable{
         this.jerk = VectorSum(this.jerk, VectorSetLen(this.velocity, -8)) //An enemy that hits the player bounces back in the direction he came from
     }
     collideEnemy(object){
-        this.jerk = VectorSum(this.jerk, VectorSetLen(VectorSub(this.loc, object.loc), 8)) //Enemies bounce away from eachother
+        this.jerk = VectorSum(this.jerk, VectorSetLen(VectorSub(this.loc, object.loc), 4)) //Enemies bounce away from eachother
     }
 }
 
@@ -526,10 +533,13 @@ class Enemy_Ogre extends Enemy{
     }
 
     collideEnemy(object){
-        //Ogres don't give way
+        if(object instanceof Enemy_Ogre){
+            super.collideEnemy(object)
+        }
+        //Ogres don't give way, unless it's to other ogres
     }
     collideBullet(object){
-        this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force*0.35)) //The ogre takes less recoil
+        this.jerk = VectorSum(this.jerk, VectorSetLen(object.velocity, object.force*0.25)) //The ogre takes less recoil
         this.hurt()
     }
 
@@ -587,6 +597,8 @@ class Enemy_Demon extends Enemy{
     }
 }
 
+
+
 //Dummy object for animations, etc
 class Dummy extends Movable{
     constructor(game, x, y, animation){
@@ -627,6 +639,16 @@ class Dummy_DeathAnim extends Dummy{
     }
 }
 
+class Dummy_Endgame extends Dummy{
+    constructor(game, x, y, animamtion){
+        super(game, x, y, animamtion)
+    }
+    cleanup(){
+        this.game.end = true;
+        super.cleanup()
+    }
+}
+
 class Dummy_Targeting extends Dummy{
     constructor(game, x, y, owner){
         super(game, x, y);
@@ -637,6 +659,24 @@ class Dummy_Targeting extends Dummy{
     cleanup(){
         var bullet = new Bullet(this.game, this.loc[0], this.loc[1], 0, 0, this.owner);
         bullet.tileIndex = this.bulletTile;
+        super.cleanup();
+    }
+}
+
+class Dummy_Spawner extends Dummy{
+    constructor(game, x, y, type){
+        super(game, x, y);
+        this.type = type;
+        this.maxFrames = 20;
+    }
+    cleanup(){
+        var enemy;
+        if(this.type == 0) enemy = new Enemy_Basic(this.game, this.loc[0], this.loc[1]);
+        else if(this.type == 1) enemy = new Enemy_Knight(this.game, this.loc[0], this.loc[1]);
+        else if(this.type == 2) enemy = new Enemy_Demon(this.game, this.loc[0], this.loc[1]);
+        else if(this.type == 3) enemy = new Enemy_Ogre(this.game, this.loc[0], this.loc[1]);
+        else { super.cleanup(); return; }
+        enemy.hurt();
         super.cleanup();
     }
 }
@@ -678,9 +718,6 @@ class Dummy_Key extends Dummy_Gun{
         if(object instanceof Player){
             this.maxFrames = 0;
             object.key = true;
-            if(this.game.ui[1].animations[0].alpha == 0){ //(TODO: Seriously, make UI a class)
-                this.game.ui[1].animations[0].alpha = 1
-            }
         }
     }
 }
@@ -716,6 +753,7 @@ class Game{
         this.size_x = size_x;
         this.tileSize = 16;
         this.prepLoad = undefined; //Whether or not to change stage at the end of the update loop
+        this.ui = new Array();
 
         //Load stage
         this.movables = new Array();
@@ -730,7 +768,6 @@ class Game{
         this.player = new Player(this); // The first stage will load the player afterwards
 
         //Make the UI
-        this.ui = new Array();
         this.makeUI();
     }
 
@@ -810,6 +847,7 @@ class Game{
 
     //Build the UI on game load
     makeUI(){
+        console.log(this.ui)
         this.ui = new Array();
 
         var hearts = new Object();
@@ -817,6 +855,7 @@ class Game{
         hearts.tileIndex = 522;
         hearts.loc = [16, 16];
         cursor.tileIndex = 696;
+        cursor.loc = [0,0];
 
         var anim = new Animation('scale');
         var anim2 = new Animation('alpha');

@@ -5,6 +5,7 @@ class Display{
         this.buffer.canvas.height = this.buffer.height = this.size_y = size_y;
         this.buffer.canvas.width = this.buffer.width = this.size_x = size_x;
         this.tileSheet = new TileSheet(tile_size, tiles_x, tiles_y)
+        this.menuIndex = 0;
     }
 
     fill(color){
@@ -76,6 +77,10 @@ class Display{
         this.buffer.beginPath()
         this.buffer.fillStyle = "#ffffff";
         this.buffer.fillRect(Math.round(x),Math.round(y),x_size,y_size);
+    }
+
+    drawMenu(){
+        this.buffer.drawImage(this.menuImg[this.menuIndex], 0, 0, this.buffer.canvas.width, this.buffer.canvas.height);
     }
 
     render(){
