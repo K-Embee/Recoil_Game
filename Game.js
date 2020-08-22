@@ -39,9 +39,13 @@ class Movable{
         if(this.life <= 0){
             this.die();
         }
+        else{
+            this.game.audio.hurt.play();
+        }
     }
     die(){
         this.markForDeletion = true;
+        this.game.audio.die.play();
     }
 
     //Cleanup/Delete methods
@@ -267,6 +271,7 @@ class Player extends Movable{
         //Do the funny animation
         var ragdoll = new Dummy_DeathAnim(this.game, this.loc[0], this.loc[1], Dummy_DeathAnim.prototype.deathAnim());
         ragdoll.tileIndex = this.tileIndex;
+        this.game.audio.die.play();
 
 
         //Don't call the parent, we never want to delete the player
@@ -331,7 +336,7 @@ class Player extends Movable{
 
             //Shoot the player's weapon
             this.weapon.fire(-(vector_x/vector_len)*20, -(vector_y/vector_len)*20);
-
+            this.game.audio.weapon.play();
             //Set the player's jerk,
             this.jerk = VectorSetLen([vector_x, vector_y], 25);
         }
@@ -661,6 +666,7 @@ class Dummy_Targeting extends Dummy{
         this.bulletTile;
     }
     cleanup(){
+        this.game.audio.fire.play();
         var bullet = new Bullet(this.game, this.loc[0], this.loc[1], 0, 0, this.owner);
         bullet.tileIndex = this.bulletTile;
         super.cleanup();
@@ -680,7 +686,8 @@ class Dummy_Spawner extends Dummy{
         else if(this.type == 2) enemy = new Enemy_Demon(this.game, this.loc[0], this.loc[1]);
         else if(this.type == 3) enemy = new Enemy_Ogre(this.game, this.loc[0], this.loc[1]);
         else { super.cleanup(); return; }
-        enemy.hurt();
+        enemy.life -= 1;
+        this.game.audio.warp.play();
         super.cleanup();
     }
 }
@@ -699,6 +706,7 @@ class Dummy_Gun extends Dummy{ //A dummy item to give the player its gun
             if(this.game.ui[1].animations[0].alpha == 0){ //(TODO: Seriously, make UI a class)
                 this.game.ui[1].animations[0].alpha = 1
             }
+            this.game.audio.item.play();
         }
     }
 
@@ -722,6 +730,7 @@ class Dummy_Key extends Dummy_Gun{
         if(object instanceof Player){
             this.maxFrames = 0;
             object.key = true;
+            this.game.audio.item.play();
         }
     }
 }
@@ -759,6 +768,11 @@ class Game{
         this.prepLoad = undefined; //Whether or not to change stage at the end of the update loop
         this.ui = new Array();
 
+        //Set up audio
+        this.audioSetup();
+
+        this.audio.music_f.play();
+
         //Load stage
         this.movables = new Array();
         //this.stages = (new Array()); this.stages.length = 99; this.stages.push(new Arena(this, 99));
@@ -773,6 +787,7 @@ class Game{
 
         //Make the UI
         this.makeUI();
+
     }
 
     //Load all movables previously stored in a stage
@@ -851,7 +866,6 @@ class Game{
 
     //Build the UI on game load
     makeUI(){
-        console.log(this.ui)
         this.ui = new Array();
 
         var hearts = new Object();
@@ -871,6 +885,46 @@ class Game{
         cursor.animations = [anim2, anim3];
 
         this.ui.push(hearts); this.ui.push(cursor);
+    }
+
+    audioSetup(){
+        this.audio = new Object();
+        this.audio.weapon = new Audio('audio/shotgun.wav');
+        this.audio.fire = new Audio('audio/flame.wav');
+        this.audio.die = new Audio('audio/die.wav');
+        this.audio.warp = new Audio('audio/warp.wav');
+        this.audio.hurt = new Audio('audio/hurt.wav');
+        this.audio.item = new Audio('audio/item.wav');
+
+        this.audio.music_f = new Audio('audio/music_first.wav');
+        this.audio.music_loop = new Audio('audio/music_loop.wav');
+        this.audio.boss_f = new Audio('audio/boss_first.wav');
+        this.audio.boss_loop = new Audio('audio/boss_loop.wav');
+
+
+        this.audio.music_loop.loop = true;
+        this.audio.boss_loop.loop = true;
+
+        this.audio.music_loop.preload = 'auto';
+        this.audio.boss_loop.preload = 'auto';
+
+        var music_loop = this.audio.music_loop
+        var boss_loop = this.audio.boss_loop
+
+        this.audio.music_f.addEventListener ('ended', function(event) { music_loop.play(); } );
+        this.audio.boss_f.addEventListener ('ended', function(event) { boss_loop.play(); } );
+
+        this.audio.weapon.volume = 0.2;
+        this.audio.fire.volume = 0.2 * 0.6;
+        this.audio.die.volume = 0.2;
+        this.audio.warp.volume = 0.2;
+        this.audio.hurt.volume = 0.2;
+        this.audio.item.volume = 0.2;
+
+        this.audio.music_f.volume = 0.2 * 1.2;
+        this.audio.music_loop.volume = 0.2 * 1.2;
+        this.audio.boss_f.volume = 0.2 * 1.2;
+        this.audio.boss_loop.volume = 0.2 * 1.2;
     }
 
 }

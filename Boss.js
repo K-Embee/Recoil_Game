@@ -13,6 +13,11 @@ class Enemy_Boss extends Enemy{
 
         this.game.boss = this;
 
+
+        this.game.audio.music_f.pause();
+        this.game.audio.music_loop.pause();
+        this.game.audio.boss_f.play();
+
         this.createDummyUI();
     }
 
@@ -115,6 +120,9 @@ class Enemy_Boss extends Enemy{
 
     die(){
         this.game.boss = undefined;
+        this.game.audio.boss_loop.pause();
+        this.game.audio.boss_f.pause();
+        this.game.audio.item.play();
         new Dummy_Endgame(this.game, -16, -16);
         super.die();
     }
@@ -129,6 +137,8 @@ class Enemy_Boss extends Enemy{
         var rotate = new Animation('rotate');
         rotate.angle = -Math.atan2(playerDir[0], playerDir[1]) * 180 / Math.PI;
         ball.animations.push(rotate);
+        this.game.audio.fire.fastSeek(0);
+        this.game.audio.fire.play();
     }
 
     doTeleport(){
@@ -136,6 +146,7 @@ class Enemy_Boss extends Enemy{
         while(this.game.checkCollision(this, this.game.player) == true){
             this.loc = [Math.floor(Math.random()*14+9)*16, Math.floor(Math.random()*12+2)*16] //Reroll if you're about to teleport into the player
         }
+        this.game.audio.warp.play();
     }
 
     teleport(){
