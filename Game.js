@@ -420,6 +420,10 @@ class Enemy extends Movable{
         this.maxSpeed = 2;
         this.friction = true;
 
+        var waddle = new Animation('waddle');
+        waddle.setUpdate(function(){ this.frame++; this.angle = 10*Math.sin(this.frame) });
+        this.animations.push(waddle);
+
     }
 
     collide(object){

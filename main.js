@@ -65,11 +65,11 @@ window.addEventListener("load", function(event) {
         requestAnimationFrame(run);
     }, {once:true});
 
-    display.tileSheet.image.src = "custom_pack.png";
+    display.tileSheet.image.src = "imgs/custom_pack.png";
     display.menuImg = [new Image(),new Image(),new Image()];
-    display.menuImg[0].src = "menu.png";
-    display.menuImg[1].src = "howto.png";
-    display.menuImg[2].src = "ending.png";
+    display.menuImg[0].src = "imgs/menu.png";
+    display.menuImg[1].src = "imgs/howto.png";
+    display.menuImg[2].src = "imgs/ending.png";
     render();
 
     function menuNext(){
