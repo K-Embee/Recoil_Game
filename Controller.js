@@ -58,13 +58,13 @@ class Controller{
         if(this.keyState.status[0] == true) {
             this.keyState.direction[1] +=1;
         }
-        else if(this.keyState.status[1] == true) {
+        if(this.keyState.status[1] == true) {
             this.keyState.direction[1] -=1;
         }
-        else if(this.keyState.status[2] == true) {
+        if(this.keyState.status[2] == true) {
         this.keyState.direction[0] -=1;
         }
-        else if(this.keyState.status[3] == true) {
+        if(this.keyState.status[3] == true) {
             this.keyState.direction[0] +=1;
         }
     }

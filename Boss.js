@@ -137,7 +137,7 @@ class Enemy_Boss extends Enemy{
         var rotate = new Animation('rotate');
         rotate.angle = -Math.atan2(playerDir[0], playerDir[1]) * 180 / Math.PI;
         ball.animations.push(rotate);
-        this.game.audio.fire.fastSeek(0);
+        this.game.audio.fire.currentTime = 0;
         this.game.audio.fire.play();
     }
 
