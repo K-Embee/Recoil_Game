@@ -11,7 +11,7 @@ The game's main mechanic is a weapon that pushes the player back with the force 
 As is usual for game jams with tight time constraints, while the core code made earlier in the jam is polished, some of the later features added such as audio and the boss enemy were rather hastily added and don't abide at all by good software design principles.
 
 ### To run
-Download the repository and open the `index.html` file in any browser. Alternatively, play on itch.io at the following link: https://github.com/K-Embee/Recoil_Game .
+Download the repository and open the `index.html` file in any browser. Alternatively, play on itch.io at the following link: https://k-embee.itch.io/recoil.
 
 ### Controls
 * WSAD/Arrow Keys: Move
